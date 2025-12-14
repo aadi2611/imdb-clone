@@ -1,45 +1,39 @@
+import React, { useEffect, useState } from "react";
 import MovieCard from "./MovieCard";
+import { fetchPopularMovies } from "./api";
 
 function App() {
-  const movies = [
-    {
-      title: "Inception",
-      year: 2010,
-      rating: 5,
-      poster:
-        "https://m.media-amazon.com/images/I/51nbVEuw1HL._AC_.jpg",
-    },
-    {
-      title: "Interstellar",
-      year: 2014,
-      rating: 4,
-      poster:
-        "https://m.media-amazon.com/images/I/71niXI3lxlL._AC_SL1178_.jpg",
-    },
-    {
-      title: "The Dark Knight",
-      year: 2008,
-      rating: 5,
-      poster:
-        "https://m.media-amazon.com/images/I/51k0qa6YQmL._AC_.jpg",
-    },
-  ];
+  const [movies, setMovies] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setLoading(true);
+    setError(null);
+
+    fetchPopularMovies({ signal: controller.signal })
+      .then((data) => setMovies(data))
+      .catch((err) => {
+        if (err.name !== "AbortError") setError(err.message || "Failed to load movies");
+      })
+      .finally(() => setLoading(false));
+
+    return () => controller.abort();
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gray-100 p-10">
-      <h1 className="text-3xl font-bold text-center mb-8">
+    <div className="min-h-screen bg-gray-900 p-6">
+      <h1 className="text-3xl font-bold text-center mb-8 text-white">
         🎬 Movie Collection
       </h1>
 
-      <div className="flex flex-wrap justify-center gap-6">
-        {movies.map((m, index) => (
-          <MovieCard
-            key={index}
-            poster={m.poster}
-            title={m.title}
-            year={m.year}
-            rating={m.rating}
-          />
+      {loading && <p className="text-center text-gray-300">Loading movies…</p>}
+      {error && <p className="text-center text-red-400">{error}</p>}
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+        {movies.map((m) => (
+          <MovieCard key={m.id ?? m.title} poster={m.poster} title={m.title} year={m.year} rating={m.rating} />
         ))}
       </div>
     </div>
