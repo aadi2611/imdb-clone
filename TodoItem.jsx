@@ -1,9 +1,12 @@
 import React from "react";
+import { useTheme } from "./ThemeContext";
 
 const TodoItem = React.memo(function TodoItem({ id, text, completed, onToggle, onDelete, isDeleting }) {
+  const theme = useTheme();
+
   return (
     <li
-      className={`flex items-center gap-3 p-4 bg-gray-800 rounded-md border border-gray-700 transition-all ${
+      className={`flex items-center gap-3 p-4 ${theme.cardBg} rounded-md border ${theme.cardBorder} transition-all ${
         isDeleting ? "animate-slide-out" : "animate-slide-in"
       } ${completed ? "opacity-70" : ""}`}
     >
@@ -15,7 +18,7 @@ const TodoItem = React.memo(function TodoItem({ id, text, completed, onToggle, o
         aria-label={`Mark "${text}" as ${completed ? "incomplete" : "complete"}`}
       />
       <span
-        className={`flex-1 text-lg ${completed ? "line-through text-gray-500" : "text-white"}`}
+        className={`flex-1 text-lg ${completed ? `line-through ${theme.text} opacity-50` : theme.text}`}
       >
         {text}
       </span>

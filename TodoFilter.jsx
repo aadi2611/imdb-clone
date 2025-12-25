@@ -1,6 +1,8 @@
 import React from "react";
+import { useTheme } from "./ThemeContext";
 
 export default function TodoFilter({ filter, onFilterChange }) {
+  const theme = useTheme();
   const filters = [
     { value: "all", label: "All" },
     { value: "pending", label: "Pending" },
@@ -16,7 +18,7 @@ export default function TodoFilter({ filter, onFilterChange }) {
           className={`px-4 py-2 rounded-md font-medium transition-colors ${
             filter === f.value
               ? "bg-indigo-500 text-white"
-              : "bg-gray-800 text-gray-300 hover:bg-gray-700"
+              : `${theme.buttonSecondaryBg}`
           }`}
           aria-pressed={filter === f.value}
         >

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import MovieCard from "./MovieCard";
 import SearchBar from "./SearchBar";
 import ThemeSwitcher from "./ThemeSwitcher";
@@ -8,7 +9,8 @@ import EmptyState from "./EmptyState";
 import { fetchPopularMovies, searchMovies } from "./api";
 import { useTheme } from "./ThemeContext";
 
-function App() {
+function Home() {
+  const navigate = useNavigate();
   const [movies, setMovies] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -134,8 +136,6 @@ function App() {
 
   return (
     <div className={`min-h-screen ${bg} transition-colors duration-500 overflow-x-hidden`}>
-      <ThemeSwitcher />
-      
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 md:py-12">
         {/* Hero Section */}
         <div className="text-center mb-12 md:mb-16 animate-fade-in">
@@ -177,7 +177,7 @@ function App() {
                     animationDuration: "0.6s",
                   }}
                 >
-                  <MovieCard poster={m.poster} title={m.title} year={m.year} rating={m.rating} />
+                  <MovieCard poster={m.poster} title={m.title} year={m.year} rating={m.rating} id={m.id} />
                 </div>
               ))}
             </div>
@@ -210,4 +210,4 @@ function App() {
   );
 }
 
-export default App;
+export default Home;
