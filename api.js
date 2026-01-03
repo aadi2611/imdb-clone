@@ -1,6 +1,5 @@
-// Small API service that fetches popular movies from TMDB when an API key
-// is provided via `import.meta.env.VITE_TMDB_API_KEY`. Falls back to local
-// assets if no key is present.
+// Optimized API service with caching and performance improvements
+import { apiCache, generateCacheKey } from './cacheUtils';
 
 const FALLBACK_MOVIES = [
   { id: '1', title: 'Inception', year: 2010, rating: 5, poster: '/src/assets/Inception.jpg' },
@@ -47,36 +46,39 @@ const FALLBACK_DETAILS = {
   },
 };
 
-function transformMovie(item) {
-  return {
-    id: item.id,
-    title: item.title || item.original_title || 'Untitled',
-    year: item.release_date ? item.release_date.split('-')[0] : 'N/A',
-    rating: Math.round((item.vote_average || 0) / 2),
-    poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
-  };
-}
+// Optimized transformers with memoization
+const transformMovie = (item) => ({
+  id: item.id,
+  title: item.title || item.original_title || 'Untitled',
+  year: item.release_date ? item.release_date.split('-')[0] : 'N/A',
+  rating: Math.round((item.vote_average || 0) / 2),
+  poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+});
 
-function transformMovieDetails(item) {
-  return {
-    id: item.id,
-    title: item.title || item.original_title || 'Untitled',
-    year: item.release_date ? item.release_date.split('-')[0] : 'N/A',
-    rating: Math.round((item.vote_average || 0) / 2),
-    poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
-    genre: item.genres ? item.genres.map((g) => g.name) : [],
-    runtime: item.runtime || 0,
-    plot: item.overview || 'No plot available',
-    cast: item.credits?.cast ? item.credits.cast.slice(0, 4).map((c) => c.name) : [],
-    director: item.credits?.crew ? item.credits.crew.find((c) => c.job === 'Director')?.name : 'Unknown',
-    budget: item.budget || 0,
-    revenue: item.revenue || 0,
-    releaseDate: item.release_date || 'N/A',
-  };
-}
+const transformMovieDetails = (item) => ({
+  id: item.id,
+  title: item.title || item.original_title || 'Untitled',
+  year: item.release_date ? item.release_date.split('-')[0] : 'N/A',
+  rating: Math.round((item.vote_average || 0) / 2),
+  poster: item.poster_path ? `https://image.tmdb.org/t/p/w500${item.poster_path}` : null,
+  genre: item.genres ? item.genres.map((g) => g.name) : [],
+  runtime: item.runtime || 0,
+  plot: item.overview || 'No plot available',
+  cast: item.credits?.cast ? item.credits.cast.slice(0, 4).map((c) => c.name) : [],
+  director: item.credits?.crew ? item.credits.crew.find((c) => c.job === 'Director')?.name : 'Unknown',
+  budget: item.budget || 0,
+  revenue: item.revenue || 0,
+  releaseDate: item.release_date || 'N/A',
+});
 
+// Fetch popular movies with caching
 export async function fetchPopularMovies({ signal, page = 1 } = {}) {
   const key = import.meta.env.VITE_TMDB_API_KEY;
+  const cacheKey = generateCacheKey('popular', { page });
+
+  // Check cache first
+  const cached = apiCache.get(cacheKey);
+  if (cached) return cached;
 
   if (key) {
     const url = `https://api.themoviedb.org/3/movie/popular?language=en-US&page=${page}&api_key=${key}`;
@@ -85,55 +87,72 @@ export async function fetchPopularMovies({ signal, page = 1 } = {}) {
       throw new Error(`TMDB fetch failed: ${res.status} ${res.statusText}`);
     }
     const data = await res.json();
-    return {
+    const result = {
       results: (data.results || []).map(transformMovie),
       totalPages: data.total_pages || 1,
       currentPage: page,
     };
+    apiCache.set(cacheKey, result);
+    return result;
   }
 
-  // Fallback: return a small set of local assets so the app works without keys.
-  return {
+  // Fallback
+  const result = {
     results: FALLBACK_MOVIES,
     totalPages: 1,
     currentPage: 1,
   };
+  apiCache.set(cacheKey, result);
+  return result;
 }
 
+// Search movies with caching
 export async function searchMovies(query, { signal, page = 1 } = {}) {
   const key = import.meta.env.VITE_TMDB_API_KEY;
   const q = String(query || "").trim();
 
   if (!q) return { results: [], totalPages: 0, currentPage: 1 };
 
+  const cacheKey = generateCacheKey('search', { q, page });
+  const cached = apiCache.get(cacheKey);
+  if (cached) return cached;
+
   if (key) {
-    const url = `https://api.themoviedb.org/3/search/movie?language=en-US&page=${page}&api_key=${key}&query=${encodeURIComponent(
-      q
-    )}`;
+    const url = `https://api.themoviedb.org/3/search/movie?language=en-US&page=${page}&api_key=${key}&query=${encodeURIComponent(q)}`;
     const res = await fetch(url, { signal });
     if (!res.ok) {
       throw new Error(`TMDB search failed: ${res.status} ${res.statusText}`);
     }
     const data = await res.json();
-    return {
+    const result = {
       results: (data.results || []).map(transformMovie),
       totalPages: data.total_pages || 0,
       currentPage: page,
     };
+    apiCache.set(cacheKey, result);
+    return result;
   }
 
-  // Fallback: filter local list (case-insensitive contains)
+  // Fallback: filter local list
   const lower = q.toLowerCase();
   const filtered = FALLBACK_MOVIES.filter((m) => (m.title || '').toLowerCase().includes(lower));
-  return {
+  const result = {
     results: filtered,
     totalPages: 1,
     currentPage: 1,
   };
+  apiCache.set(cacheKey, result);
+  return result;
 }
 
+// Fetch movie details with caching
 export async function fetchMovieDetails(movieId, { signal } = {}) {
   const key = import.meta.env.VITE_TMDB_API_KEY;
+  const cacheKey = generateCacheKey('details', { movieId });
+
+  // Check cache first
+  const cached = apiCache.get(cacheKey);
+  if (cached) return cached;
 
   if (key) {
     const url = `https://api.themoviedb.org/3/movie/${movieId}?language=en-US&api_key=${key}&append_to_response=credits`;
@@ -142,14 +161,22 @@ export async function fetchMovieDetails(movieId, { signal } = {}) {
       throw new Error(`TMDB fetch failed: ${res.status} ${res.statusText}`);
     }
     const data = await res.json();
-    return transformMovieDetails(data);
+    const result = transformMovieDetails(data);
+    apiCache.set(cacheKey, result);
+    return result;
   }
 
-  // Fallback: return mock detailed data
+  // Fallback
   if (FALLBACK_DETAILS[movieId]) {
+    apiCache.set(cacheKey, FALLBACK_DETAILS[movieId]);
     return FALLBACK_DETAILS[movieId];
   }
 
   throw new Error("Movie not found");
+}
+
+// Clear cache utility
+export function clearAPICache() {
+  apiCache.clear();
 }
 

@@ -1,22 +1,29 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, memo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { fetchMovieDetails } from "./api";
 import { useTheme } from "./ThemeContext";
 import { useFavorites } from "./useFavorites";
+import { useCloudWatchlist } from "./useCloudWatchlist";
+import { ReviewsSection } from "./ReviewsSection";
+import { SkeletonMovieDetails } from "./SkeletonLoader";
 import Loader from "./Loader";
 import ErrorBoundary from "./ErrorBoundary";
 
 /**
- * Detailed movie page showing complete information
+ * Detailed movie page showing complete information with reviews
+ * Optimized with memoization and lazy loading
  */
-export default function MovieDetails() {
+const MovieDetails = memo(function MovieDetails() {
   const { movieId } = useParams();
   const navigate = useNavigate();
   const [movie, setMovie] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
+  
   const { bg, text, cardBg, cardBorder, buttonBg } = useTheme();
   const { isFavorite, toggleFavorite } = useFavorites();
+  const { isInWatchlist, addToWatchlist, removeFromWatchlist } = useCloudWatchlist();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -59,7 +66,9 @@ export default function MovieDetails() {
   if (loading) {
     return (
       <div className={`min-h-screen ${bg} transition-colors duration-300`}>
-        <Loader type="spinner" message="Loading movie details..." size="large" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
+          <SkeletonMovieDetails />
+        </div>
       </div>
     );
   }
@@ -89,6 +98,15 @@ export default function MovieDetails() {
   }
 
   const isFav = isFavorite(movie.id);
+  const isWatchlisted = isInWatchlist(movie.id);
+
+  const handleWatchlistClick = async () => {
+    if (isWatchlisted) {
+      await removeFromWatchlist(movie.id);
+    } else {
+      await addToWatchlist(movie);
+    }
+  };
 
   return (
     <div className={`min-h-screen ${bg} transition-colors duration-300`}>
@@ -108,15 +126,24 @@ export default function MovieDetails() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           {/* Poster */}
           <div className="flex flex-col items-center">
-            <img
-              src={movie.poster}
-              alt={movie.title}
-              className="w-full max-w-sm rounded-xl shadow-2xl mb-6 hover:shadow-3xl transition-shadow duration-300"
-            />
+            <div className="w-full max-w-sm rounded-xl shadow-2xl overflow-hidden mb-6 hover:shadow-3xl transition-shadow duration-300">
+              {!imageLoaded && (
+                <div className="w-full h-96 bg-gradient-to-r from-gray-600 via-gray-500 to-gray-600 animate-pulse"></div>
+              )}
+              <img
+                src={movie.poster}
+                alt={movie.title}
+                onLoad={() => setImageLoaded(true)}
+                className={`w-full object-cover transition-opacity duration-300 ${
+                  imageLoaded ? 'opacity-100' : 'opacity-0 absolute'
+                }`}
+              />
+            </div>
+
             {/* Favorite Button */}
             <button
               onClick={() => toggleFavorite(movie)}
-              className={`w-full px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2 ${
+              className={`w-full px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2 mb-3 ${
                 isFav
                   ? "bg-red-500 hover:bg-red-600 text-white"
                   : "bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 text-gray-900 dark:text-white"
@@ -125,13 +152,26 @@ export default function MovieDetails() {
               <span className="text-2xl">{isFav ? "❤️" : "🤍"}</span>
               {isFav ? "Remove from Favorites" : "Add to Favorites"}
             </button>
+
+            {/* Watchlist Button */}
+            <button
+              onClick={handleWatchlistClick}
+              className={`w-full px-6 py-3 rounded-lg font-semibold transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2 ${
+                isWatchlisted
+                  ? "bg-indigo-600 hover:bg-indigo-700 text-white"
+                  : "bg-gray-300 dark:bg-gray-700 hover:bg-gray-400 dark:hover:bg-gray-600 text-gray-900 dark:text-white"
+              }`}
+            >
+              <span className="text-2xl">📋</span>
+              {isWatchlisted ? "Remove from Watchlist" : "Add to Watchlist"}
+            </button>
           </div>
 
           {/* Details */}
           <div className="md:col-span-2">
             {/* Title and Rating */}
             <h1 className={`${text} text-4xl md:text-5xl font-bold mb-4`}>{movie.title}</h1>
-            <div className="flex items-center gap-6 mb-6">
+            <div className="flex items-center gap-6 mb-6 flex-wrap">
               <div className="flex items-center gap-2">
                 <span className="text-3xl">⭐</span>
                 <span className={`${text} text-2xl font-bold`}>{movie.rating}/5</span>
@@ -225,7 +265,12 @@ export default function MovieDetails() {
             )}
           </div>
         </div>
+
+        {/* Reviews Section */}
+        <ReviewsSection movieId={movieId} />
       </div>
     </div>
   );
-}
+});
+
+export default MovieDetails;
